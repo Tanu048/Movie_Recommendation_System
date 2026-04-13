@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineVault — Movie Recommendations</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Google Fonts: Bebas Neue (display) + DM Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body class="dark-mode">
+
+  <!-- ===== NAVBAR ===== -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <!-- Logo -->
+      <a href="#" class="logo" aria-label="CineVault Home">
+        <span class="logo-icon">▶</span>
+        <span class="logo-text">CineVault</span>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#home" class="nav-link active" data-section="home">Home</a></li>
+        <li><a href="#movies" class="nav-link" data-section="movies">Movies</a></li>
+        <li><a href="#genres" class="nav-link" data-section="genres">Genres</a></li>
+        <li><a href="#favorites" class="nav-link" data-section="favorites">Favorites</a></li>
+      </ul>
+
+      <!-- Search -->
+      <div class="nav-search">
+        <input type="text" id="searchInput" placeholder="Search movies…" autocomplete="off" aria-label="Search movies" />
+        <span class="search-icon">🔍</span>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" title="Toggle light/dark mode">
+        <span class="theme-icon">🌙</span>
+      </button>
+
+      <!-- Hamburger -->
+      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu" role="dialog" aria-label="Mobile navigation">
+      <ul>
+        <li><a href="#home" class="nav-link" onclick="closeMobileMenu()">Home</a></li>
+        <li><a href="#movies" class="nav-link" onclick="closeMobileMenu()">Movies</a></li>
+        <li><a href="#genres" class="nav-link" onclick="closeMobileMenu()">Genres</a></li>
+        <li><a href="#favorites" class="nav-link" onclick="closeMobileMenu()">Favorites</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ===== HERO SECTION ===== -->
+  <section class="hero" id="home" aria-label="Featured movie">
+    <div class="hero-bg" id="heroBg"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content" id="heroContent">
+      <!-- Populated by JS -->
+    </div>
+    <!-- Hero dots -->
+    <div class="hero-dots" id="heroDots"></div>
+  </section>
+
+  <!-- ===== SEARCH RESULTS SECTION ===== -->
+  <section class="search-results-section" id="searchResultsSection" aria-live="polite" style="display:none;">
+    <div class="container">
+      <h2 class="section-title">Search Results</h2>
+      <div class="movies-grid" id="searchResultsGrid"></div>
+      <div class="no-results" id="noResults" style="display:none;">
+        <div class="no-results-icon">🎬</div>
+        <p>No movies found for "<span id="noResultsQuery"></span>"</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GENRE FILTER ===== -->
+  <section class="genre-section" id="genres">
+    <div class="container">
+      <h2 class="section-title">Browse by Genre</h2>
+      <div class="genre-filters" id="genreFilters" role="group" aria-label="Genre filter buttons">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== MOVIES SECTION ===== -->
+  <section class="movies-section" id="movies">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="moviesTitle">All Movies</h2>
+        <div class="view-toggle">
+          <button class="view-btn active" id="gridViewBtn" aria-label="Grid view" title="Grid view">⊞</button>
+          <button class="view-btn" id="rowViewBtn" aria-label="Row view" title="Row view">☰</button>
+        </div>
+      </div>
+      <!-- Skeleton loader -->
+      <div class="skeleton-grid" id="skeletonGrid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+      <!-- Actual movies grid -->
+      <div class="movies-grid" id="moviesGrid" style="display:none;"></div>
+      <div class="no-results" id="noFilterResults" style="display:none;">
+        <div class="no-results-icon">🎬</div>
+        <p>No movies found in this genre.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FAVORITES SECTION ===== -->
+  <section class="favorites-section" id="favorites">
+    <div class="container">
+      <h2 class="section-title">My Watchlist <span class="fav-count" id="favCount">0</span></h2>
+      <div class="movies-grid" id="favoritesGrid"></div>
+      <div class="empty-favorites" id="emptyFavorites">
+        <div class="empty-icon">📽️</div>
+        <p>Your watchlist is empty.<br/>Add movies by clicking the ♡ icon.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span class="logo-text">CineVault</span>
+      <p>© 2026 CineVault. Built for movie lovers.</p>
+    </div>
+  </footer>
+
+  <!-- ===== MOVIE DETAIL MODAL ===== -->
+  <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-label="Movie details" style="display:none;">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="modalClose" aria-label="Close modal">✕</button>
+      <div class="modal-body" id="modalBody">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BACK TO TOP ===== -->
+  <button class="back-to-top" id="backToTop" aria-label="Back to top" title="Back to top">↑</button>
+
+  <script src="script.js"></script>
+</body>
+</html>

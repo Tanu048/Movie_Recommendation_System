@@ -6,7 +6,7 @@
  *          modal, theme toggle, skeleton loader.
  */
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "";
 
 /* ===========================================
    MOVIE DATASET
@@ -17,18 +17,23 @@ async function fetchMovies() {
   try {
     const response = await fetch(`${API_BASE}/movies/`);
     const data = await response.json();
+    const rawMovies = data.movies || (Array.isArray(data) ? data : []);
 
-    MOVIES = data.movies.map((title, index) => ({
-      id: index,
-      title: title,
-      genre: "Unknown",
-      rating: 8,
-      year: 2020,
+    MOVIES = rawMovies.map((movie, index) => ({
+      id: movie.movie_id || index,
+      title: movie.title || "Untitled",
+      genre: movie.genres || "Unknown",
+      rating: movie.rating || 8,
+      year: movie.year || 2020,
       runtime: "120 min",
-      poster: "https://placehold.co/500x750",
-      backdrop: "https://placehold.co/1200x700",
-      description: "Movie description unavailable",
-      cast: [],
+
+      poster: movie.poster ||
+        `https://placehold.co/500x750?text=${movie.title}`,
+
+      backdrop: movie.poster ||
+        `https://placehold.co/1200x700?text=${movie.title}`,
+
+      description: movie.overview,
       featured: index < 5
     }));
 
@@ -36,6 +41,7 @@ async function fetchMovies() {
 
   } catch (error) {
     console.error("Error fetching movies:", error);
+    hideSkeleton();
   }
 }
 
@@ -53,13 +59,14 @@ let state = {
 };
 
 /* Compute genre list from movies */
-let FEATURED = [];
-let GENRES = [];
 
 function init() {
 
-  FEATURED = MOVIES.filter(m => m.featured);
-  GENRES = ["All", ...new Set(MOVIES.map(m => m.genre))];
+  FEATURED = MOVIES.filter(m => m.featured || m.id < 5);
+  GENRES = ["All", ...new Set(MOVIES.map(m => m.genre).filter(Boolean))];
+
+  // FEATURED = MOVIES.filter(m => m.featured);
+  // GENRES = ["All", ...new Set(MOVIES.map(m => m.genre))];
 
   console.log("MOVIES:", MOVIES.length)
   console.log("FEATURED:", FEATURED.length)
@@ -355,7 +362,7 @@ function openModal(id) {
 
   document.getElementById("modalBody").innerHTML = `
     <div class="modal-hero">
-      <img src="${movie.backdrop || movie.poster}" alt="${movie.title} backdrop"
+      <img src="${movie.poster}" alt="${movie.title} backdrop"
            onerror="this.src='${movie.poster}'" />
       <div class="modal-hero-overlay"></div>
     </div>
@@ -465,4 +472,29 @@ async function getRecommendations(movieName) {
 }
 
 // ── Boot ──
-document.addEventListener("DOMContentLoaded", fetchMovies);
+
+document.addEventListener("DOMContentLoaded", () => {
+  fetchMovies(); // Start the data fetch
+
+  // 1. Theme Toggle Logic
+  const themeBtn = document.getElementById("themeToggle");
+  themeBtn.addEventListener("click", () => {
+    state.isDark = !state.isDark;
+    document.body.classList.toggle("light-mode", !state.isDark);
+    themeBtn.querySelector(".theme-icon").textContent = state.isDark ? "🌙" : "☀️";
+  });
+
+  // 2. Mobile Menu Logic
+  const hamburger = document.getElementById("hamburger");
+  const mobileMenu = document.getElementById("mobileMenu");
+  hamburger.addEventListener("click", () => {
+    hamburger.classList.toggle("open");
+    mobileMenu.classList.toggle("open");
+  });
+
+  // 3. Search Bar Logic
+  const searchInput = document.getElementById("searchInput");
+  searchInput.addEventListener("input", (e) => {
+    renderSearchResults(e.target.value);
+  });
+});

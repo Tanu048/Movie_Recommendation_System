@@ -25,11 +25,11 @@ async function fetchMovies() {
       rating: 8,
       year: 2020,
       runtime: "120 min",
-      poster: "https://via.placeholder.com/500x750",
-      backdrop: "https://via.placeholder.com/1200x700",
+      poster: "https://placehold.co/500x750",
+      backdrop: "https://placehold.co/1200x700",
       description: "Movie description unavailable",
       cast: [],
-      featured: index < 3
+      featured: index < 5
     }));
 
     init();
@@ -53,17 +53,23 @@ let state = {
 };
 
 /* Compute genre list from movies */
-let GENRES = []
-let FEATURED = []
+let FEATURED = [];
+let GENRES = [];
 
 function init() {
 
-  GENRES = ["All", ...new Set(MOVIES.map(m => m.genre))]
+  FEATURED = MOVIES.filter(m => m.featured);
+  GENRES = ["All", ...new Set(MOVIES.map(m => m.genre))];
 
-  FEATURED = MOVIES.filter(m => m.featured)
+  console.log("MOVIES:", MOVIES.length)
+  console.log("FEATURED:", FEATURED.length)
 
-  renderHero(0)
-  startHeroAutoPlay()
+  if (FEATURED.length > 0) {
+    renderHero(0);
+    startHeroAutoPlay();
+  }
+  renderGenreFilters();
+  renderMovies();
 }
 /* ===========================================
    UTILITIES
@@ -272,10 +278,14 @@ function renderFavorites() {
    HERO CAROUSEL
    =========================================== */
 function renderHero(index) {
+
+  if (!FEATURED.length) return;
+
   const movie = FEATURED[index];
+  if (!movie) return;
+
   const bg = document.getElementById("heroBg");
   const content = document.getElementById("heroContent");
-  const starsStr = starsHTML(movie.rating);
 
   // Background image
   bg.style.backgroundImage = `url('${movie.backdrop || movie.poster}')`;
@@ -301,7 +311,6 @@ function renderHero(index) {
     </div>
   `;
 
-  // Dots
   renderHeroDots(index);
 }
 
@@ -432,135 +441,6 @@ function hideSkeleton() {
 /* ===========================================
    INIT
    =========================================== */
-function init() {
-  // Render initial hero
-  renderHero(0);
-  startHeroAutoPlay();
-
-  // Render genre filters
-  renderGenreFilters();
-
-  // Show skeleton, then render movies after brief delay (simulates load)
-  showSkeleton();
-  setTimeout(() => {
-    renderMovies();
-    hideSkeleton();
-  }, 900);
-
-  // Render favorites
-  renderFavorites();
-  updateFavCount();
-
-  // Bind card click events on each grid container
-  bindCardClicks("moviesGrid");
-  bindCardClicks("favoritesGrid");
-  bindCardClicks("searchResultsGrid");
-
-  // ── Genre filter clicks ──
-  document.getElementById("genreFilters").addEventListener("click", e => {
-    const btn = e.target.closest(".genre-btn");
-    if (!btn) return;
-    state.activeGenre = btn.dataset.genre;
-    // Update button states
-    document.querySelectorAll(".genre-btn").forEach(b => {
-      b.classList.toggle("active", b.dataset.genre === state.activeGenre);
-      b.setAttribute("aria-pressed", b.dataset.genre === state.activeGenre);
-    });
-    renderMovies();
-    document.getElementById("movies").scrollIntoView({ behavior: "smooth" });
-  });
-
-  // ── Search ──
-  const searchInput = document.getElementById("searchInput");
-  let searchDebounce;
-  searchInput.addEventListener("input", () => {
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      state.searchQuery = searchInput.value;
-      renderSearchResults(state.searchQuery);
-    }, 300);
-  });
-
-  // ── View toggle ──
-  document.getElementById("gridViewBtn").addEventListener("click", () => {
-    state.viewMode = "grid";
-    document.getElementById("gridViewBtn").classList.add("active");
-    document.getElementById("rowViewBtn").classList.remove("active");
-    renderMovies();
-  });
-  document.getElementById("rowViewBtn").addEventListener("click", () => {
-    state.viewMode = "row";
-    document.getElementById("rowViewBtn").classList.add("active");
-    document.getElementById("gridViewBtn").classList.remove("active");
-    renderMovies();
-  });
-
-  // ── Modal close ──
-  document.getElementById("modalClose").addEventListener("click", closeModal);
-  document.getElementById("modalOverlay").addEventListener("click", e => {
-    if (e.target === e.currentTarget) closeModal();
-  });
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") closeModal();
-  });
-
-  // ── Theme toggle ──
-  const themeToggle = document.getElementById("themeToggle");
-  themeToggle.addEventListener("click", () => {
-    state.isDark = !state.isDark;
-    document.body.classList.toggle("dark-mode", state.isDark);
-    document.body.classList.toggle("light-mode", !state.isDark);
-    themeToggle.querySelector(".theme-icon").textContent = state.isDark ? "🌙" : "☀️";
-  });
-
-  // ── Hamburger ──
-  const hamburger = document.getElementById("hamburger");
-  const mobileMenu = document.getElementById("mobileMenu");
-  hamburger.addEventListener("click", () => {
-    const open = hamburger.classList.toggle("open");
-    hamburger.setAttribute("aria-expanded", open);
-    mobileMenu.classList.toggle("open", open);
-  });
-
-  // ── Navbar scroll effect ──
-  window.addEventListener("scroll", () => {
-    const scrolled = window.scrollY > 40;
-    document.getElementById("navbar").classList.toggle("scrolled", scrolled);
-    // Back to top
-    document.getElementById("backToTop").classList.toggle("visible", window.scrollY > 400);
-  }, { passive: true });
-
-  // ── Back to top ──
-  document.getElementById("backToTop").addEventListener("click", () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
-
-  // ── Smooth scroll nav links ──
-  document.querySelectorAll('a[href^="#"]').forEach(link => {
-    link.addEventListener("click", e => {
-      const target = document.getElementById(link.getAttribute("href").slice(1));
-      if (target) {
-        e.preventDefault();
-        const offset = target.getBoundingClientRect().top + window.scrollY - 72;
-        window.scrollTo({ top: offset, behavior: "smooth" });
-      }
-    });
-  });
-
-  // ── Active nav link on scroll ──
-  const sections = document.querySelectorAll("section[id]");
-  const navLinks = document.querySelectorAll(".nav-link");
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        navLinks.forEach(l => {
-          l.classList.toggle("active", l.dataset.section === entry.target.id);
-        });
-      }
-    });
-  }, { rootMargin: "-40% 0px -55% 0px" });
-  sections.forEach(s => observer.observe(s));
-}
 
 // recommendation function
 async function getRecommendations(movieName) {

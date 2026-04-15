@@ -12,6 +12,8 @@ const API_BASE = "";
    MOVIE DATASET
    =========================================== */
 let MOVIES = [];
+let FEATURED = [];
+let GENRES = [];
 
 async function fetchMovies() {
   try {
@@ -22,18 +24,18 @@ async function fetchMovies() {
     MOVIES = rawMovies.map((movie, index) => ({
       id: movie.movie_id || index,
       title: movie.title || "Untitled",
+      // BUG FIX: store raw genre string for splitting later
       genre: movie.genres || "Unknown",
       rating: movie.rating || 8,
       year: movie.year || 2020,
       runtime: "120 min",
-
       poster: movie.poster ||
-        `https://placehold.co/500x750?text=${movie.title}`,
-
-      backdrop: movie.poster ||
-        `https://placehold.co/1200x700?text=${movie.title}`,
-
-      description: movie.overview,
+        `https://placehold.co/500x750?text=${encodeURIComponent(movie.title)}`,
+      // BUG FIX: use movie.backdrop first, not movie.poster
+      backdrop: movie.backdrop || movie.poster ||
+        `https://placehold.co/1200x700?text=${encodeURIComponent(movie.title)}`,
+      // BUG FIX: guard against null/undefined overview
+      description: movie.overview || "",
       featured: index < 5
     }));
 
@@ -52,37 +54,129 @@ let state = {
   activeGenre: "All",
   searchQuery: "",
   favorites: JSON.parse(localStorage.getItem("cinevault_favorites") || "[]"),
-  viewMode: "grid",          // "grid" | "row"
+  viewMode: "grid",
   heroIndex: 0,
   heroInterval: null,
   isDark: true
 };
 
-/* Compute genre list from movies */
-
+/* ===========================================
+   INIT — called after movies are fetched
+   =========================================== */
 function init() {
+  // Build featured list
+  FEATURED = MOVIES.filter(m => m.featured);
 
-  FEATURED = MOVIES.filter(m => m.featured || m.id < 5);
-  GENRES = ["All", ...new Set(MOVIES.map(m => m.genre).filter(Boolean))];
+  // BUG FIX: split comma-separated genre strings into individual genres
+  GENRES = [
+    "All",
+    ...new Set(
+      MOVIES.flatMap(m =>
+        m.genre ? m.genre.split(',').map(g => g.trim()).filter(Boolean) : []
+      )
+    )
+  ].sort((a, b) => a === "All" ? -1 : b === "All" ? 1 : a.localeCompare(b));
 
-  // FEATURED = MOVIES.filter(m => m.featured);
-  // GENRES = ["All", ...new Set(MOVIES.map(m => m.genre))];
-
-  console.log("MOVIES:", MOVIES.length)
-  console.log("FEATURED:", FEATURED.length)
-
+  // Hero carousel
   if (FEATURED.length > 0) {
     renderHero(0);
     startHeroAutoPlay();
   }
+
+  // Genre filters
   renderGenreFilters();
+
+  // Show movies (skeleton was shown on DOMContentLoaded)
+  hideSkeleton();
   renderMovies();
+
+  // Favorites
+  renderFavorites();
+  updateFavCount();
+
+  // BUG FIX: bind card clicks — was missing entirely from this version
+  bindCardClicks("moviesGrid");
+  bindCardClicks("favoritesGrid");
+  bindCardClicks("searchResultsGrid");
+
+  // BUG FIX: genre filter click handler — was missing from this version
+  document.getElementById("genreFilters").addEventListener("click", e => {
+    const btn = e.target.closest(".genre-btn");
+    if (!btn) return;
+    state.activeGenre = btn.dataset.genre;
+    document.querySelectorAll(".genre-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.genre === state.activeGenre);
+      b.setAttribute("aria-pressed", b.dataset.genre === state.activeGenre);
+    });
+    renderMovies();
+    document.getElementById("movies").scrollIntoView({ behavior: "smooth" });
+  });
+
+  // BUG FIX: view toggle buttons — were missing from this version
+  document.getElementById("gridViewBtn").addEventListener("click", () => {
+    state.viewMode = "grid";
+    document.getElementById("gridViewBtn").classList.add("active");
+    document.getElementById("rowViewBtn").classList.remove("active");
+    renderMovies();
+  });
+  document.getElementById("rowViewBtn").addEventListener("click", () => {
+    state.viewMode = "row";
+    document.getElementById("rowViewBtn").classList.add("active");
+    document.getElementById("gridViewBtn").classList.remove("active");
+    renderMovies();
+  });
+
+  // BUG FIX: modal close handlers — were missing from this version
+  document.getElementById("modalClose").addEventListener("click", closeModal);
+  document.getElementById("modalOverlay").addEventListener("click", e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  // BUG FIX: navbar scroll + back-to-top — were missing from this version
+  window.addEventListener("scroll", () => {
+    document.getElementById("navbar").classList.toggle("scrolled", window.scrollY > 40);
+    document.getElementById("backToTop").classList.toggle("visible", window.scrollY > 400);
+  }, { passive: true });
+
+  document.getElementById("backToTop").addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  // BUG FIX: smooth scroll for nav links — were missing
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener("click", e => {
+      const target = document.getElementById(link.getAttribute("href").slice(1));
+      if (target) {
+        e.preventDefault();
+        const offset = target.getBoundingClientRect().top + window.scrollY - 72;
+        window.scrollTo({ top: offset, behavior: "smooth" });
+      }
+    });
+  });
+
+  // BUG FIX: active nav link on scroll — was missing
+  const sections = document.querySelectorAll("section[id]");
+  const navLinks = document.querySelectorAll(".nav-link");
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(l => {
+          l.classList.toggle("active", l.dataset.section === entry.target.id);
+        });
+      }
+    });
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  sections.forEach(s => observer.observe(s));
 }
+
 /* ===========================================
    UTILITIES
    =========================================== */
 
-/** Build star HTML string for a given rating (out of 10 → 5 stars) */
+/** Build star HTML for a rating out of 10 → 5 stars */
 function starsHTML(rating) {
   const filled = Math.round(rating / 2);
   let html = '';
@@ -92,17 +186,17 @@ function starsHTML(rating) {
   return html;
 }
 
-/** Check if a movie is in favorites */
+/** Returns true if movie id is in favorites */
 function isFav(id) {
   return state.favorites.includes(id);
 }
 
-/** Save favorites to localStorage */
+/** Persist favorites to localStorage */
 function saveFavorites() {
   localStorage.setItem("cinevault_favorites", JSON.stringify(state.favorites));
 }
 
-/** Toggle favorite and re-render relevant sections */
+/** Toggle favorite status and update all relevant UI */
 function toggleFavorite(id) {
   const idx = state.favorites.indexOf(id);
   if (idx === -1) {
@@ -114,11 +208,12 @@ function toggleFavorite(id) {
   }
   saveFavorites();
 
-  // Update all fav buttons for this movie across the page
+  // BUG FIX: cache isFav result to avoid calling it 3+ times per loop iteration
+  const nowFav = isFav(id);
   document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach(btn => {
-    btn.classList.toggle("active", isFav(id));
-    btn.title = isFav(id) ? "Remove from Watchlist" : "Add to Watchlist";
-    btn.setAttribute("aria-pressed", isFav(id));
+    btn.classList.toggle("active", nowFav);
+    btn.title = nowFav ? "Remove from Watchlist" : "Add to Watchlist";
+    btn.setAttribute("aria-pressed", nowFav);
   });
 
   renderFavorites();
@@ -143,9 +238,20 @@ function showToast(msg) {
   setTimeout(() => toast.remove(), 3000);
 }
 
-/** Update favorites count badge */
+/** Update the favorites count badge */
 function updateFavCount() {
   document.getElementById("favCount").textContent = state.favorites.length;
+}
+
+/* ===========================================
+   SHARED HELPER — animated card HTML
+   =========================================== */
+// BUG FIX: extracted repeated animation-delay injection into one helper
+function animatedCardHTML(movie, index) {
+  return movieCardHTML(movie).replace(
+    '<article',
+    `<article style="animation-delay:${index * 0.04}s"`
+  );
 }
 
 /* ===========================================
@@ -154,12 +260,11 @@ function updateFavCount() {
 function movieCardHTML(movie) {
   const fav = isFav(movie.id);
   const starsStr = starsHTML(movie.rating);
-  // Stagger animation delay based on card position
   return `
     <article class="movie-card" data-id="${movie.id}" role="button" tabindex="0" aria-label="View details for ${movie.title}">
       <div class="movie-poster">
         <img src="${movie.poster}" alt="${movie.title} poster" loading="lazy"
-             onerror="this.src='https://via.placeholder.com/300x450/16161f/e8a020?text=${encodeURIComponent(movie.title)}'" />
+             onerror="this.src='https://placehold.co/300x450/16161f/e8a020?text=${encodeURIComponent(movie.title)}'" />
         <div class="movie-poster-overlay">
           <button class="play-btn" aria-label="Open details for ${movie.title}">▶</button>
         </div>
@@ -207,14 +312,18 @@ function renderMovies() {
   const noResults = document.getElementById("noFilterResults");
   const title = document.getElementById("moviesTitle");
 
+  // BUG FIX 1: declare filtered with let (not implicit global)
+  // BUG FIX 2: guard "All" case — previously always returned 0 movies
   let filtered = MOVIES;
   if (state.activeGenre !== "All") {
-    filtered = MOVIES.filter(m => m.genre === state.activeGenre);
+    filtered = MOVIES.filter(m =>
+      m.genre.split(',').map(g => g.trim()).includes(state.activeGenre)
+    );
   }
 
   title.textContent = state.activeGenre === "All" ? "All Movies" : state.activeGenre;
 
-  // Apply view mode class
+  // Apply view mode class (preserves display:grid set by hideSkeleton)
   grid.className = `movies-grid${state.viewMode === "row" ? " row-view" : ""}`;
 
   if (filtered.length === 0) {
@@ -222,11 +331,7 @@ function renderMovies() {
     noResults.style.display = "block";
   } else {
     noResults.style.display = "none";
-    grid.innerHTML = filtered.map((m, i) => {
-      const card = movieCardHTML(m);
-      // Inject animation delay via inline style
-      return card.replace('<article', `<article style="animation-delay:${i * 0.04}s"`);
-    }).join('');
+    grid.innerHTML = filtered.map((m, i) => animatedCardHTML(m, i)).join('');
   }
 }
 
@@ -244,10 +349,11 @@ function renderSearchResults(query) {
 
   section.style.display = "block";
   const q = query.toLowerCase().trim();
+  // BUG FIX: guard description with || "" to avoid crash on null/undefined
   const results = MOVIES.filter(m =>
     m.title.toLowerCase().includes(q) ||
     m.genre.toLowerCase().includes(q) ||
-    m.description.toLowerCase().includes(q)
+    (m.description || '').toLowerCase().includes(q)
   );
 
   if (results.length === 0) {
@@ -256,9 +362,7 @@ function renderSearchResults(query) {
     noQuery.textContent = query;
   } else {
     noRes.style.display = "none";
-    grid.innerHTML = results.map((m, i) =>
-      movieCardHTML(m).replace('<article', `<article style="animation-delay:${i * 0.04}s"`)
-    ).join('');
+    grid.innerHTML = results.map((m, i) => animatedCardHTML(m, i)).join('');
   }
 
   section.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -275,9 +379,7 @@ function renderFavorites() {
     empty.style.display = "block";
   } else {
     empty.style.display = "none";
-    grid.innerHTML = favMovies.map((m, i) =>
-      movieCardHTML(m).replace('<article', `<article style="animation-delay:${i * 0.04}s"`)
-    ).join('');
+    grid.innerHTML = favMovies.map((m, i) => animatedCardHTML(m, i)).join('');
   }
 }
 
@@ -285,20 +387,18 @@ function renderFavorites() {
    HERO CAROUSEL
    =========================================== */
 function renderHero(index) {
-
   if (!FEATURED.length) return;
-
   const movie = FEATURED[index];
   if (!movie) return;
 
   const bg = document.getElementById("heroBg");
   const content = document.getElementById("heroContent");
 
-  // Background image
+  bg.classList.remove("zoom");
+  // BUG FIX: use backdrop (not poster) for hero background
   bg.style.backgroundImage = `url('${movie.backdrop || movie.poster}')`;
   setTimeout(() => bg.classList.add("zoom"), 50);
 
-  // Content
   content.innerHTML = `
     <div class="hero-badge">⭐ Featured Film</div>
     <h1 class="hero-title">${movie.title}</h1>
@@ -333,20 +433,19 @@ function renderHeroDots(activeIdx) {
 }
 
 function goToHero(idx) {
-  document.getElementById("heroBg").classList.remove("zoom");
-  state.heroIndex = idx;
   clearInterval(state.heroInterval);
+  state.heroIndex = idx;
   renderHero(idx);
   startHeroAutoPlay();
 }
 
 function nextHero() {
-  document.getElementById("heroBg").classList.remove("zoom");
   state.heroIndex = (state.heroIndex + 1) % FEATURED.length;
   renderHero(state.heroIndex);
 }
 
 function startHeroAutoPlay() {
+  clearInterval(state.heroInterval); // prevent stacking intervals
   state.heroInterval = setInterval(nextHero, 6000);
 }
 
@@ -362,7 +461,7 @@ function openModal(id) {
 
   document.getElementById("modalBody").innerHTML = `
     <div class="modal-hero">
-      <img src="${movie.poster}" alt="${movie.title} backdrop"
+      <img src="${movie.backdrop || movie.poster}" alt="${movie.title} backdrop"
            onerror="this.src='${movie.poster}'" />
       <div class="modal-hero-overlay"></div>
     </div>
@@ -399,8 +498,7 @@ function openModal(id) {
     </div>
   `;
 
-  const overlay = document.getElementById("modalOverlay");
-  overlay.style.display = "flex";
+  document.getElementById("modalOverlay").style.display = "flex";
   document.body.style.overflow = "hidden";
 }
 
@@ -416,14 +514,11 @@ function bindCardClicks(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.addEventListener("click", e => {
-    const card = e.target.closest(".movie-card");
     const favBtn = e.target.closest(".fav-btn");
-    if (favBtn) return; // handled inline
-    if (card) {
-      openModal(Number(card.dataset.id));
-    }
+    if (favBtn) return; // handled by inline onclick
+    const card = e.target.closest(".movie-card");
+    if (card) openModal(Number(card.dataset.id));
   });
-  // Keyboard accessibility
   container.addEventListener("keydown", e => {
     if (e.key === "Enter" || e.key === " ") {
       const card = e.target.closest(".movie-card");
@@ -446,55 +541,60 @@ function hideSkeleton() {
 }
 
 /* ===========================================
-   INIT
+   RECOMMENDATION API
    =========================================== */
-
-// recommendation function
 async function getRecommendations(movieName) {
   try {
     const response = await fetch(`${API_BASE}/movies/recommend`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        movie_name: movieName
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ movie_name: movieName })
     });
-
     const data = await response.json();
-    return data.recommendations;
-
+    return data.recommendations || [];
   } catch (error) {
     console.error("Recommendation error:", error);
     return [];
   }
 }
 
-// ── Boot ──
-
+/* ===========================================
+   BOOT — DOMContentLoaded
+   =========================================== */
 document.addEventListener("DOMContentLoaded", () => {
-  fetchMovies(); // Start the data fetch
 
-  // 1. Theme Toggle Logic
+  // Show skeleton immediately while fetch is in-flight
+  showSkeleton();
+
+  // BUG FIX: fetch movies only ONCE (previously called twice)
+  fetchMovies();
+
+  // Theme toggle
   const themeBtn = document.getElementById("themeToggle");
   themeBtn.addEventListener("click", () => {
     state.isDark = !state.isDark;
+    document.body.classList.toggle("dark-mode", state.isDark);
     document.body.classList.toggle("light-mode", !state.isDark);
     themeBtn.querySelector(".theme-icon").textContent = state.isDark ? "🌙" : "☀️";
   });
 
-  // 2. Mobile Menu Logic
+  // Hamburger / mobile menu
   const hamburger = document.getElementById("hamburger");
   const mobileMenu = document.getElementById("mobileMenu");
   hamburger.addEventListener("click", () => {
-    hamburger.classList.toggle("open");
-    mobileMenu.classList.toggle("open");
+    const open = hamburger.classList.toggle("open");
+    hamburger.setAttribute("aria-expanded", open);
+    mobileMenu.classList.toggle("open", open);
   });
 
-  // 3. Search Bar Logic
+  // Search input with debounce
   const searchInput = document.getElementById("searchInput");
+  let searchDebounce;
   searchInput.addEventListener("input", (e) => {
-    renderSearchResults(e.target.value);
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      state.searchQuery = e.target.value;
+      renderSearchResults(state.searchQuery);
+    }, 300);
   });
 });

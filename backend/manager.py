@@ -8,6 +8,7 @@ poster_movies = poster_movies.fillna("")
 
 class MovieManager:
 
+    @staticmethod
     def extract_genres(genre_str):
         try:
             genres = ast.literal_eval(genre_str)
